@@ -2,9 +2,8 @@
 Unit tests for real estate JSON file ingestion service.
 """
 
-from pathlib import Path
 import json
-import pytest
+
 from src.services.ingestor import JsonFileIngestor
 
 

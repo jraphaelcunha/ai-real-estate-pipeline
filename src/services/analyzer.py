@@ -1,10 +1,10 @@
-from typing import Optional
-from langchain_openai import ChatOpenAI
+
 from langchain_core.prompts import ChatPromptTemplate
-from openai import AuthenticationError, RateLimitError, APIError
+from langchain_openai import ChatOpenAI
+from openai import APIError, AuthenticationError, RateLimitError
 
 from src.config import settings
-from src.domain.schemas import PropertyInput, PropertyAnalysis, ActionEnum
+from src.domain.schemas import ActionEnum, PropertyAnalysis, PropertyInput
 from src.utils.logger import get_logger
 
 logger = get_logger("analyzer")
@@ -32,7 +32,7 @@ class RealEstateAnalyzer:
                 logger.error(f"Failed to initialize ChatOpenAI: {e}. Enabling MOCK MODE.")
                 self.mock_mode = True
 
-    def analyze_property(self, property_data: PropertyInput) -> Optional[PropertyAnalysis]:
+    def analyze_property(self, property_data: PropertyInput) -> PropertyAnalysis | None:
         """
         Analyzes a property to determine investment viability.
         Returns simulated data if in mock mode or if API fails.

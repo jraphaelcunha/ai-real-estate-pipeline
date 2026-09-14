@@ -2,7 +2,8 @@
 Unit tests for MondayClient service and GraphQL mutation preparation.
 """
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from src.services.monday import MondayClient
 
 

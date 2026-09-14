@@ -3,8 +3,9 @@ Pytest global fixtures and configurations for AI Real Estate Pipeline test suite
 """
 
 from decimal import Decimal
+
 import pytest
-from src.domain.schemas import PropertyInput, PropertyAnalysis, ActionEnum
+from src.domain.schemas import ActionEnum, PropertyAnalysis, PropertyInput
 
 
 @pytest.fixture

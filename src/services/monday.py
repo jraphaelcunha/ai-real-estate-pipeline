@@ -1,10 +1,12 @@
-from typing import Optional
 import json
+
 import requests
+
 from src.config import settings
-from src.utils.logger import get_logger
-from src.domain.schemas import PropertyInput, PropertyAnalysis
+from src.domain.schemas import PropertyAnalysis, PropertyInput
 from src.utils.geocoder import get_coordinates
+from src.utils.logger import get_logger
+
 
 class MondayClient:
     def __init__(self):

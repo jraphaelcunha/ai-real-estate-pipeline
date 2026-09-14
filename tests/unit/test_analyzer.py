@@ -3,9 +3,10 @@ Unit tests for RealEstateAnalyzer service and fallback strategies.
 """
 
 from decimal import Decimal
-from unittest.mock import patch, MagicMock
-from src.services.analyzer import RealEstateAnalyzer
+from unittest.mock import MagicMock, patch
+
 from src.domain.schemas import ActionEnum
+from src.services.analyzer import RealEstateAnalyzer
 
 
 def test_analyzer_fallback_to_mock_mode_when_no_api_key(sample_property_input, monkeypatch):

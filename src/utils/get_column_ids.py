@@ -1,12 +1,13 @@
-import requests
-import json
-import sys
 import os
+import sys
+
+import requests
 
 # Ensure src module is in python path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from src.services.monday import MondayClient
+
 
 def get_column_ids():
     client = MondayClient()

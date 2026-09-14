@@ -1,7 +1,7 @@
-from src.services.ingestor import JsonFileIngestor
 from src.services.analyzer import RealEstateAnalyzer
+from src.services.ingestor import JsonFileIngestor
 from src.services.monday import MondayClient
-from src.config import settings
+
 
 def main():
     # 1. Initialize Services

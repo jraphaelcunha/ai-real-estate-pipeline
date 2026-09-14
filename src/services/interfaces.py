@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import List
 
 from src.domain.schemas import PropertyInput
+
 
 class DataIngestor(ABC):
     """
@@ -10,9 +10,8 @@ class DataIngestor(ABC):
     """
     
     @abstractmethod
-    def load_properties(self) -> List[PropertyInput]:
+    def load_properties(self) -> list[PropertyInput]:
         """
         Abstract method to load property data.
         Must return a list of PropertyInput objects.
         """
-        pass

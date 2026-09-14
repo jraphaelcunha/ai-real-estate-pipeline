@@ -1,8 +1,8 @@
-from geopy.geocoders import Nominatim
-from typing import Optional, Dict
-import time
 
-def get_coordinates(address: str) -> Optional[Dict[str, float]]:
+from geopy.geocoders import Nominatim
+
+
+def get_coordinates(address: str) -> dict[str, float] | None:
     """
     Geocodes an address string to latitude/longitude coordinates.
     Returns a dictionary compatible with Monday.com Location column (lat, lng, address).

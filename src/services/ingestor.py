@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import List
+
 from pydantic import ValidationError
 
 from src.domain.schemas import PropertyInput
@@ -18,7 +18,7 @@ class JsonFileIngestor(DataIngestor):
         # Use pathlib to resolve absolute path dynamically
         self.file_path = Path(file_path).resolve()
         
-    def load_properties(self) -> List[PropertyInput]:
+    def load_properties(self) -> list[PropertyInput]:
         """
         Loads properties from the configured JSON file.
         Includes fault tolerance to skip individual invalid items.

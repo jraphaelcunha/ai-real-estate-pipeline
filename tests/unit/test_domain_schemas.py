@@ -3,9 +3,10 @@ Unit tests for domain schemas and contracts in AI Real Estate Pipeline.
 """
 
 from decimal import Decimal
+
 import pytest
 from pydantic import ValidationError
-from src.domain.schemas import PropertyInput, PropertyAnalysis, ActionEnum
+from src.domain.schemas import ActionEnum, PropertyAnalysis
 
 
 def test_property_input_valid(sample_property_input):
@@ -27,8 +28,8 @@ def test_property_analysis_score_bounds():
             summary="Invalid score test",
             risk_factors=[],
             recommended_action=ActionEnum.PASS,
-            arv=Decimal("100000"),
-            renovation_cost=Decimal("10000")
+            arv=Decimal(100000),
+            renovation_cost=Decimal(10000)
         )
 
 
