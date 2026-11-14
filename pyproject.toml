@@ -1,0 +1,72 @@
+[project]
+name = "ai-real-estate-pipeline"
+version = "0.2.0"
+description = "Sanitized reference architecture for automated real estate underwriting, multi-document financial reconciliation, and GIS broker routing."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "langchain>=0.2.0",
+    "langchain-openai>=0.1.0",
+    "requests>=2.31.0",
+    "geopy>=2.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.4.0",
+]
+scraper = [
+    "playwright>=1.45.0",
+]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-v --strict-markers"
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = [
+    "src/utils/get_column_ids.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests", "eval"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "BLE",  # flake8-blind-except
+    "G",    # flake8-logging-format
+    "S",    # flake8-bandit
+]
+ignore = [
+    "E501",  # line length handled conservatively
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src", "eval"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/services/analyzer.py" = ["BLE001"]  # Intentional graceful degradation to deterministic heuristic engine
+"src/services/ingestor.py" = ["BLE001"]  # Fault-tolerant per-item isolation for batch ingestion
+"src/services/scraper.py" = ["BLE001"]   # Graceful Playwright fallback to structured fixtures
+"src/utils/geocoder.py" = ["BLE001"]     # Graceful fallback when Nominatim is unavailable or rate-limited
+"tests/*" = ["S101", "S105", "S106"]     # Assertions and dummy API tokens in tests

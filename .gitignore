@@ -1,5 +1,10 @@
 .env
 __pycache__/
+*.pyc
 *.log
+.coverage
+htmlcov/
+.pytest_cache/
+.ruff_cache/
 venv/
 .DS_Store

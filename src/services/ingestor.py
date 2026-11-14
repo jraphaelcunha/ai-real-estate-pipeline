@@ -9,52 +9,55 @@ from src.utils.logger import get_logger
 
 logger = get_logger("json_ingestor")
 
+
 class JsonFileIngestor(DataIngestor):
-    """
-    Concrete implementation of DataIngestor for JSON files.
-    """
-    
-    def __init__(self, file_path: str):
-        # Use pathlib to resolve absolute path dynamically
+    """Concrete implementation of DataIngestor for structured deal package JSON feeds."""
+
+    def __init__(self, file_path: str) -> None:
         self.file_path = Path(file_path).resolve()
-        
+
     def load_properties(self) -> list[PropertyInput]:
         """
-        Loads properties from the configured JSON file.
-        Includes fault tolerance to skip individual invalid items.
+        Load properties from the configured JSON file.
+        Includes fault tolerance to isolate and skip malformed records.
         """
-        logger.info(f"Attempting to load properties from {self.file_path}")
-        
+        logger.info("Attempting to load properties from %s", self.file_path)
+
         if not self.file_path.exists():
-            logger.error(f"File not found: {self.file_path}")
+            logger.error("File not found: %s", self.file_path)
             return []
-            
+
         try:
-            with open(self.file_path, 'r', encoding='utf-8') as f:
+            with open(self.file_path, encoding="utf-8") as f:
                 data = json.load(f)
-                
+
             if not isinstance(data, list):
-                logger.error(f"Invalid JSON format. Expected a list, got {type(data)}")
+                logger.error("Invalid JSON format. Expected a list, got %s", type(data))
                 return []
-                
-            properties = []
-            
+
+            properties: list[PropertyInput] = []
+
             for index, item in enumerate(data):
                 try:
-                    # Validate and convert individual item
                     prop = PropertyInput(**item)
                     properties.append(prop)
-                except ValidationError as e:
-                    logger.warning(f"Skipping invalid item at index {index}: {e}")
-                except Exception as e:
-                    logger.warning(f"Unexpected error processing item at index {index}: {e}")
-            
-            logger.info(f"Successfully loaded {len(properties)} properties from {self.file_path}")
+                except ValidationError as exc:
+                    logger.warning("Skipping invalid item at index %d: %s", index, exc)
+                except Exception as exc:
+                    logger.warning(
+                        "Unexpected error processing item at index %d: %s", index, exc
+                    )
+
+            logger.info(
+                "Successfully loaded %d properties from %s",
+                len(properties),
+                self.file_path,
+            )
             return properties
-            
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to decode JSON file: {e}")
+
+        except json.JSONDecodeError as exc:
+            logger.error("Failed to decode JSON file: %s", exc)
             return []
-        except Exception as e:
-            logger.error(f"Critical error loading properties: {e}")
+        except Exception as exc:
+            logger.error("Critical error loading properties: %s", exc)
             return []

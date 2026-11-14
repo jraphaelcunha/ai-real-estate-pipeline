@@ -1,129 +1,147 @@
-# 🏢 AI Real Estate Pipeline — Enterprise Underwriting & GIS Intelligence
+# AI Real Estate Pipeline — Automated Underwriting, Document Reconciliation & GIS Dispatch
 
-[![CI Quality Gate](https://github.com/jraphaelbarbosa/AI_Real_Estate_Pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/jraphaelbarbosa/AI_Real_Estate_Pipeline)
+[![CI Quality Gate](https://github.com/jraphaelcunha/ai-real-estate-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/jraphaelcunha/ai-real-estate-pipeline)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python)
 ![Contracts](https://img.shields.io/badge/Contracts-Pydantic%20v2-red)
-![Tests](https://img.shields.io/badge/Tests-11%20passed-brightgreen)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Orchestration](https://img.shields.io/badge/Orchestration-LangChain-orange.svg)
 ![LLM](https://img.shields.io/badge/LLM-OpenAI%20GPT--4o--mini-green.svg)
 ![Integration](https://img.shields.io/badge/Integration-Monday.com%20GIS%20GraphQL-purple.svg)
 
-> **[ 🇧🇷 Ler em Português ](README.pt-br.md)**
+> **[ Ler em Português ](README.pt-br.md)**
 
-> **Executive Overview:** The **AI Real Estate Pipeline** is an enterprise autonomous agent engineered for **real estate brokerages and property investment funds**. The platform crawls and normalizes disparate property listings from across the web, generates an objective, **apples-to-apples price/sqm and renovation ROI comparison**, geocodes exact coordinates via Nominatim GIS, and synchronizes deals into **Monday.com Enterprise Work OS**—complete with interactive map views and automated lead routing to the nearest field broker.
+> **Executive Overview:** The **AI Real Estate Pipeline** is a modular property screening, cross-document financial reconciliation, and GIS routing engine designed for real estate acquisitions teams and brokerage operations. It ingests unstructured property listings and multi-document deal feeds, enforces strict **Pydantic v2** data contracts, cross-checks financial values across **Offering Memorandums, Rent Rolls, and Broker Summaries** with page-level provenance, computes deterministic underwriting reserves, geocodes assets via **Geopy Nominatim**, and routes qualified opportunities to the nearest field broker on **Monday.com Enterprise Work OS** via GraphQL.
 
----
-
-## 🎯 Commercial Value: Standardized Deal Benchmarking & Broker Routing
-
-* **The Problem:** Property investors and real estate agencies waste 15+ hours weekly sifting through fragmented, non-standardized listing descriptions across multiple portals. Determining whether a property is underpriced, calculating renovation viability, and assigning it to the right local agent is manual, slow, and error-prone.
-* **Apples-to-Apples Benchmarking:** The pipeline ingests unstructured property data and extracts standardized valuation parameters: square footage, structural condition, estimated renovation costs, and **After Repair Value (ARV)** to output a clear investment verdict (`BUY`, `PASS`, or `INVESTIGATE`).
-* **Interactive GIS Mapping & Nearest-Broker Routing:** Addresses are automatically geocoded into precise latitude/longitude pairs via Geopy Nominatim, rendering an interactive Map View on Monday.com and routing promising deals directly to the closest field broker for immediate inspection.
-* **Commercial Impact:** Eliminates 80% of manual listing screening time, standardizes underwriting criteria across the entire investment team, and reduces field broker response time from days to minutes.
+For a detailed breakdown of architectural decisions and failure-mode trade-offs, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
-## 🏗️ 1. System Architecture & Data Flow
+## Intellectual Property & Data Sanitization Governance
+
+> [!NOTE]
+> **Sanitized Reference Architecture (NDA Compliant):**
+> This public repository is an anonymized, open-source reference architecture extracted from production consulting workflows. All client-proprietary business rules, production credentials, custom prompts, and real deal documents remain strictly confidential under NDA. All bundled fixtures (`data/raw_mock_data.json`, `eval/dataset/underwriting_v1.jsonl`) and RFC-2606 links (`*.example`) are synthetic datasets created strictly for architectural verification and deterministic CI testing.
+
+---
+
+## Commercial Value: Deal Screening, Conflict Detection & GIS Routing
+
+* **Automated Deal Intake:** Eliminates manual copy-paste sorting across scattered listing portals and investment flyers (`PlaywrightListingCollector` + `JsonFileIngestor` with per-item `ValidationError` fault isolation).
+* **Cross-Document Financial Reconciliation:** `FinancialReconciler` compares asking price, annual NOI, and unit counts across **Offering Memorandums**, **Rent Rolls**, and **Broker Summaries** (recording exact document & page provenance). Any variance above tolerance (default 2%) automatically flags the deal and escalates its Monday.com status to **`AI Reviewing` (`INVESTIGATE`)** so analysts review conflicting numbers side by side before underwriting.
+* **Deterministic Guardrails & Graceful Degradation:** LLM extraction (`gpt-4o-mini`, `temperature=0`, `.with_structured_output(LLMUnderwritingOutput)`) is strictly isolated from deterministic financial calculations and bounded by Pydantic v2 `PropertyAnalysis` validators. If external APIs experience `RateLimitError` (429) or timeouts, the analyzer seamlessly transitions to a deterministic heuristic underwriting engine (`_compute_heuristic_underwriting`) so batch runs never stall.
+* **GIS Mapping & Nearest-Broker Dispatch:** Addresses are geocoded via Geopy Nominatim (with metro centroid fallbacks) and routed to the nearest active field broker using the **Haversine distance formula**, updating the Monday.com Map View and Acquisitions Board via GraphQL.
+
+---
+
+## 1. System Architecture & Data Flow
 
 ```mermaid
 flowchart TD
-    A[Raw Property Listing Scraping] --> B[1. Fault-Tolerant JSON Ingestor]
-    B -->|Validated PropertyInput| C[2. Geospatial Resolver - Geopy Nominatim]
-    C -->|Lat/Lng Coordinates| D[3. Cognitive Underwriter - LangChain & GPT-4o-mini]
-    D -->|Strict Financial Output| E[4. Pydantic PropertyAnalysis Validation]
+    A[Playwright Collector / JSON Deal Feed] --> B[1. Fault-Tolerant Ingestor & Pydantic PropertyInput]
+    B --> C[2. FinancialReconciler: OM vs Rent Roll vs Broker Summary]
+    C -->|Variance > 2% Flagged| D[3. RealEstateAnalyzer: GPT-4o-mini or Heuristic Fallback]
+    D -->|Pydantic PropertyAnalysis + Escalation Guardrail| E[4. Geopy Nominatim + Haversine Broker Router]
     E --> F[5. Monday.com GraphQL Client]
-    F --> G[Interactive Enterprise Map View]
-    F --> H[Executive Deal Pipeline Board]
-    F --> I[Automated Nearest-Broker Dispatch]
+    F --> G[Interactive Map View]
+    F --> H[Acquisitions Pipeline Board]
+    F --> I[Nearest Field Broker Assignment]
 ```
 
 ---
 
-## 🛡️ 2. Enterprise Reliability & Design Decisions
+## 2. Automated Testing, Security & Evaluation Harness
 
-### ⚡ Graceful Degradation & Mock Fallback
-* If external LLM endpoints experience rate limiting (`RateLimitError`) or connection timeouts, the system automatically degrades into deterministic heuristic evaluation mode (`mock_mode`), preventing batch ingestion stops.
-* The test suite runs with **100% deterministic mocks** without requiring live OpenAI API keys or incurring token spend.
-
-### 📐 Strict Financial Invariants (Pydantic v2)
-* Financial models enforce strict valuation bounds:
-  * **ARV (After Repair Value):** Enforced multiplier rules against purchase prices.
-  * **Renovation Estimation:** Parametric ratio checking against historical submarket baselines.
-  * **Viability Scoring:** Bounded integer metrics (`0 <= score <= 100`) coupled with explicit action enumerations (`BUY`, `PASS`, `INVESTIGATE`).
-
-### 🗺️ GIS Location Intelligence & Routing
-* Automatically geocodes arbitrary address strings into precise latitude/longitude pairs, formatting GraphQL payloads specifically for Monday.com's native interactive map views and enabling distance-based dispatch to local agents.
-
----
-
-## 🧪 3. Automated Testing & CI Quality Gate
-
-The pipeline includes a unit test suite covering schema validation, fault tolerance, analyzer mock mode, and Monday GraphQL payload construction.
+The test suite and evaluation harness run with deterministic offline fixtures (zero external API keys or token spend required):
 
 ```bash
-# Run test suite with coverage
-pytest tests/ -v --cov=src
+# Run unit test suite with coverage
+pytest tests/ -v --cov=src --cov-report=term-missing
 
-# Run linter
-ruff check src/ tests/
+# Run strict Ruff linter & Bandit security scan
+ruff check src/ tests/ eval/
+bandit -r src/
+
+# Run deterministic underwriting & conflict reconciliation eval (--mock)
+python eval/evaluate.py --dataset eval/dataset/underwriting_v1.jsonl --mock
 ```
+
+See [eval/README.md](eval/README.md) for details on offline verification vs. live OpenAI benchmarking.
 
 ---
 
-## 🚀 4. Quickstart & Local Execution
+## 3. Quickstart & Local Execution
 
 ### Prerequisites
 * Python 3.11+
-* OpenAI API Key (optional for mock mode)
-* Monday.com API Key (optional for dry-run mode)
+* OpenAI API Key *(optional — defaults to deterministic heuristic underwriting mode when unset)*
+* Monday.com API Key *(optional — defaults to GraphQL dry-run logging mode when unset)*
 
-### Setup
+### Setup & Run
 ```bash
-# 1. Clone repository
-git clone https://github.com/jraphaelbarbosa/AI_Real_Estate_Pipeline.git
-cd AI_Real_Estate_Pipeline
+git clone https://github.com/jraphaelcunha/ai-real-estate-pipeline.git
+cd ai-real-estate-pipeline
 
-# 2. Setup virtual environment
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# 3. Install dependencies
 pip install -r requirements.txt
-
-# 4. Execute pipeline
 python -m src.main
 ```
 
 ---
 
-## 📂 5. Canonical Repository Structure
+## 4. Limitations and Next Steps
+
+* **Document OCR & Table Extraction:** The current reference ingestor accepts pre-parsed JSON/scraped listing feeds with page provenance; handling raw multi-page PDF Rent Rolls directly would require adding a PDF table extraction / Vision OCR stage ahead of `FinancialReconciler`.
+* **Asynchronous Queues & Idempotency Keys:** Converting the synchronous batch loop in `src/main.py` to an event queue (e.g., SQS or Redis/RQ) with external deal-ID deduplication would prevent duplicate Monday.com items under high-volume concurrent ingestion.
+* **Submarket CapEx Calibration:** Heuristic renovation multipliers provide resilient fallback coverage during LLM rate limits, whereas production deployments should calibrate cost-per-sqft baselines against live regional contractor comps.
+
+---
+
+## 5. Canonical Repository Structure
 
 ```text
-AI_Real_Estate_Pipeline/
+ai-real-estate-pipeline/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml                     # Automated CI Quality Gate (ruff + pytest)
+│       └── ci.yml                     # CI Quality Gate (Ruff + Bandit + Pytest + Eval)
 ├── data/
-│   └── raw_mock_data.json             # Property dataset fixture
+│   └── raw_mock_data.json             # Sanitized synthetic deal package fixtures
+├── docs/
+│   ├── ARCHITECTURE.md                # Architectural decisions & trade-offs
+│   └── monday_configuration_guide.md  # Monday.com Map & Board BI setup guide
+├── eval/
+│   ├── README.md                      # Offline & live evaluation guide
+│   ├── evaluate.py                    # Action & conflict detection benchmark harness
+│   └── dataset/
+│       └── underwriting_v1.jsonl      # 10-case synthetic underwriting fixture dataset
 ├── src/
-│   ├── config.py                      # Environment configuration
+│   ├── config.py                      # Pydantic Settings configuration
 │   ├── main.py                        # Pipeline entrypoint
 │   ├── domain/
-│   │   └── schemas.py                 # Pydantic v2 Strict Data Contracts
+│   │   └── schemas.py                 # Pydantic v2 contracts & safety validators
 │   ├── services/
-│   │   ├── ingestor.py                # Fault-tolerant JSON file ingestion
-│   │   ├── analyzer.py                # LangChain & OpenAI Underwriter
-│   │   └── monday.py                  # Monday.com GraphQL Client
+│   │   ├── interfaces.py              # Abstract DataIngestor interface
+│   │   ├── ingestor.py                # Fault-tolerant JSON feed ingestor
+│   │   ├── scraper.py                 # Modular Playwright Chromium collector
+│   │   ├── reconciler.py              # Multi-document financial conflict detector
+│   │   ├── analyzer.py                # LLM underwriter & heuristic fallback engine
+│   │   └── monday.py                  # Monday.com GraphQL client + GIS dispatch
 │   └── utils/
-│       ├── geocoder.py                # Geopy Nominatim Location Resolver
-│       └── logger.py                  # Structured logging module
+│       ├── geocoder.py                # Geopy Nominatim & Haversine broker routing
+│       ├── get_column_ids.py          # Monday.com board column discovery helper
+│       └── logger.py                  # Standardized console logger
 ├── tests/
-│   ├── conftest.py                    # Pytest Global Fixtures
-│   └── unit/
-│       ├── test_domain_schemas.py     # Pydantic contract tests
-│       ├── test_ingestor.py           # Ingestion fault tolerance tests
-│       ├── test_analyzer.py           # Underwriter & fallback tests
-│       └── test_monday.py             # Monday.com GraphQL mock tests
-├── requirements.txt                   # Production & testing dependencies
-└── README.md                          # Technical platform documentation
+│   ├── conftest.py                    # Shared Pytest fixtures
+│   └── unit/                          # Deterministic unit test suite
+├── LICENSE                            # MIT License
+├── pyproject.toml                     # Ruff, Pytest, and Coverage settings
+├── requirements.txt                   # Core dependencies
+└── requirements-dev.txt               # Testing, lint, and security dependencies
 ```
+
+---
+
+## License
+
+Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
