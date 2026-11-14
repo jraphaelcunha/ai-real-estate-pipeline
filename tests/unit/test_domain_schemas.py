@@ -1,18 +1,22 @@
-﻿"""
-Unit tests for domain schemas and contracts in AI Real Estate Pipeline.
-"""
+﻿"""Unit tests for domain schemas and Pydantic v2 safety validators."""
 
 from decimal import Decimal
 
 import pytest
 from pydantic import ValidationError
-from src.domain.schemas import ActionEnum, PropertyAnalysis
+
+from src.domain.schemas import (
+    ActionEnum,
+    DiscrepancyFlag,
+    PropertyAnalysis,
+    ReconciliationReport,
+)
 
 
 def test_property_input_valid(sample_property_input):
     assert sample_property_input.property_id == "PROP-101"
     assert sample_property_input.price == Decimal("650000.00")
-    assert "Capitol Hill" in sample_property_input.raw_description
+    assert len(sample_property_input.document_sources) == 2
 
 
 def test_property_analysis_valid(sample_property_analysis):
@@ -24,13 +28,44 @@ def test_property_analysis_valid(sample_property_analysis):
 def test_property_analysis_score_bounds():
     with pytest.raises(ValidationError):
         PropertyAnalysis(
-            viability_score=105,  # Out of 0-100 range
+            viability_score=105,
             summary="Invalid score test",
             risk_factors=[],
             recommended_action=ActionEnum.PASS,
             arv=Decimal(100000),
-            renovation_cost=Decimal(10000)
+            renovation_cost=Decimal(10000),
         )
+
+
+def test_property_analysis_escalates_buy_when_reconciliation_conflicts():
+    conflict_report = ReconciliationReport(
+        is_consistent=False,
+        tolerance_pct=0.02,
+        discrepancies=[
+            DiscrepancyFlag(
+                field_name="annual_noi",
+                values_by_source={
+                    "offering_memorandum (p.4)": "$46,000.00",
+                    "rent_roll (p.2)": "$36,200.00",
+                },
+                variance_pct=0.213,
+            )
+        ],
+        audit_notes=["Conflict on annual_noi: 21.3% variance"],
+    )
+
+    analysis = PropertyAnalysis(
+        viability_score=86,
+        summary="Strong upside potential.",
+        risk_factors=[],
+        recommended_action=ActionEnum.BUY,
+        arv=Decimal("600000.00"),
+        renovation_cost=Decimal("40000.00"),
+        reconciliation=conflict_report,
+    )
+
+    assert analysis.recommended_action == ActionEnum.INVESTIGATE
+    assert analysis.viability_score <= 68
 
 
 def test_action_enum_values():

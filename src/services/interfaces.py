@@ -8,7 +8,7 @@ class DataIngestor(ABC):
     Abstract Interface for Data Ingestion.
     Adheres to Open/Closed Principle - new sources can be added by extending this class.
     """
-    
+
     @abstractmethod
     def load_properties(self) -> list[PropertyInput]:
         """
