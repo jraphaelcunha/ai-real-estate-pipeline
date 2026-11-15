@@ -1,8 +1,33 @@
+import re
 from decimal import Decimal
 from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
+
+CRITICAL_RISK_PATTERN = re.compile(
+    r"(?<!\w)("
+    r"soil contamination|"
+    r"environmental contamination|"
+    r"contamination|"
+    r"phase\s*(?:1|i)\s*esa|"
+    r"dry cleaner|"
+    r"structural damage|"
+    r"structural foundation|"
+    r"foundation remediation|"
+    r"foundation damage|"
+    r"zoning variance|"
+    r"variance denied|"
+    r"flood zone|"
+    r"fema\b.*\bflood|"
+    r"mold remediation|"
+    r"black mold|"
+    r"toxic mold|"
+    r"(?:tenant\s+)?eviction|"
+    r"delinquency"
+    r")(?!\w)",
+    re.IGNORECASE,
+)
 
 DocumentType = Literal[
     "offering_memorandum",
@@ -90,26 +115,18 @@ class PropertyAnalysis(BaseModel):
 
     @model_validator(mode="after")
     def enforce_risk_and_reconciliation_guardrails(self) -> "PropertyAnalysis":
-        """Never allow blind BUY approval when cross-document financials conflict."""
-        if (
-            self.reconciliation is not None
-            and not self.reconciliation.is_consistent
-            and self.recommended_action == ActionEnum.BUY
-        ):
-            self.recommended_action = ActionEnum.INVESTIGATE
+        """Never allow blind BUY approval when financials conflict or critical hazards exist."""
+        has_conflict = (
+            self.reconciliation is not None and not self.reconciliation.is_consistent
+        )
+        has_critical_risk = any(
+            CRITICAL_RISK_PATTERN.search(risk) for risk in self.risk_factors
+        )
+
+        if has_conflict or has_critical_risk:
+            if self.recommended_action == ActionEnum.BUY:
+                self.recommended_action = ActionEnum.INVESTIGATE
             if self.viability_score > 68:
                 self.viability_score = 68
-
-        critical_risk_markers = (
-            "soil contamination",
-            "structural damage",
-            "zoning variance denied",
-        )
-        lowered_risks = " ".join(self.risk_factors).lower()
-        if (
-            any(marker in lowered_risks for marker in critical_risk_markers)
-            and self.recommended_action == ActionEnum.BUY
-        ):
-            self.recommended_action = ActionEnum.INVESTIGATE
 
         return self
