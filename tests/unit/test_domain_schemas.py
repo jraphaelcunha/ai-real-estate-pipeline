@@ -72,3 +72,49 @@ def test_action_enum_values():
     assert ActionEnum.BUY.value == "BUY"
     assert ActionEnum.PASS.value == "PASS"
     assert ActionEnum.INVESTIGATE.value == "INVESTIGATE"
+
+
+@pytest.mark.parametrize(
+    "risk_factor",
+    [
+        "Structural foundation remediation required",
+        "High-risk FEMA flood zone exposure and mandatory insurance cost",
+        "Adjacent environmental contamination risk (Phase I ESA required)",
+        "Unresolved municipal zoning variance dependency",
+        "Historical mold remediation requiring clearance verification",
+        "Active tenant eviction / delinquency legal overhead",
+    ],
+)
+def test_critical_risk_factors_block_buy_and_cap_score(risk_factor: str):
+    """Critical underwriting hazards must downgrade BUY to INVESTIGATE and cap viability_score."""
+    analysis = PropertyAnalysis(
+        viability_score=85,
+        summary="Strong upside potential on nominal cash flow.",
+        risk_factors=[risk_factor],
+        recommended_action=ActionEnum.BUY,
+        arv=Decimal("600000.00"),
+        renovation_cost=Decimal("40000.00"),
+    )
+
+    assert analysis.recommended_action == ActionEnum.INVESTIGATE
+    assert analysis.viability_score <= 68
+
+
+def test_non_critical_risk_factors_preserve_buy_and_score():
+    """Benign cosmetic or ordinary regulatory notes must not falsely trip critical guardrails."""
+    analysis = PropertyAnalysis(
+        viability_score=84,
+        summary="Strong turnkey asset with minor interior touch-ups.",
+        risk_factors=[
+            "Minor crown molding repair in foyer",
+            "Potential Seattle municipal rental ordinance restrictions",
+            "Deferred interior or mechanical CapEx items noted",
+        ],
+        recommended_action=ActionEnum.BUY,
+        arv=Decimal("600000.00"),
+        renovation_cost=Decimal("20000.00"),
+    )
+
+    assert analysis.recommended_action == ActionEnum.BUY
+    assert analysis.viability_score == 84
+

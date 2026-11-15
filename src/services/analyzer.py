@@ -1,5 +1,6 @@
 """Automated underwriting service with Pydantic v2 validation, reconciliation, and heuristic fallback."""
 
+import re
 from decimal import ROUND_HALF_UP, Decimal
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -18,6 +19,64 @@ from src.services.reconciler import FinancialReconciler
 from src.utils.logger import get_logger
 
 logger = get_logger("analyzer")
+
+_RISK_RULES: tuple[tuple[tuple[str, ...], int, Decimal, str, bool], ...] = (
+    (
+        ("foundation", "structural damage"),
+        -24,
+        Decimal("0.18"),
+        "Structural foundation remediation required",
+        True,
+    ),
+    (
+        ("flood zone", "fema"),
+        -18,
+        Decimal("0.05"),
+        "High-risk FEMA flood zone exposure and mandatory insurance cost",
+        True,
+    ),
+    (
+        ("mold",),
+        -10,
+        Decimal("0.06"),
+        "Historical mold remediation requiring clearance verification",
+        True,
+    ),
+    (
+        ("eviction", "non-payment"),
+        -16,
+        Decimal("0.03"),
+        "Active tenant eviction / delinquency legal overhead",
+        True,
+    ),
+    (
+        ("zoning", "variance", "denied"),
+        -22,
+        Decimal("0.04"),
+        "Unresolved municipal zoning variance dependency",
+        True,
+    ),
+    (
+        ("contamination", "dry cleaner", "phase 1"),
+        -25,
+        Decimal("0.15"),
+        "Adjacent environmental contamination risk (Phase I ESA required)",
+        True,
+    ),
+    (
+        ("dated", "cosmetic", "older furnace", "roof age"),
+        -4,
+        Decimal("0.07"),
+        "Deferred interior or mechanical CapEx items noted",
+        False,
+    ),
+)
+
+_POSITIVE_RULES: tuple[tuple[tuple[str, ...], int, Decimal], ...] = (
+    (("immaculate", "turnkey", "new hvac", "recent upgrades"), 12, Decimal("0.08")),
+    (("cap rate", "roi projected", "section 8", "cash flow"), 8, Decimal("0.04")),
+    (("comps", "3.5m+", "luxury flip", "booming suburb"), 10, Decimal("0.16")),
+)
 
 
 class RealEstateAnalyzer:
@@ -128,6 +187,10 @@ class RealEstateAnalyzer:
             )
 
             enriched_risks = list(result.risk_factors)
+            existing_risks_lower = " ".join(enriched_risks).lower()
+            for critical_label in self._extract_critical_risk_labels(property_data.raw_description):
+                if critical_label.lower() not in existing_risks_lower:
+                    enriched_risks.append(critical_label)
             if not reconciliation.is_consistent:
                 enriched_risks.extend(reconciliation.audit_notes)
 
@@ -174,6 +237,21 @@ class RealEstateAnalyzer:
             Decimal("0.01"), rounding=ROUND_HALF_UP
         )
 
+    @staticmethod
+    def _matches_keywords(text: str, keywords: tuple[str, ...]) -> bool:
+        """Return True when any keyword phrase appears on non-word boundaries in text."""
+        return any(re.search(rf"(?<!\w){re.escape(kw)}(?!\w)", text) for kw in keywords)
+
+    @classmethod
+    def _extract_critical_risk_labels(cls, description: str) -> list[str]:
+        """Extract deterministic critical underwriting risk labels from raw listing text."""
+        lowered = description.lower()
+        return [
+            risk_label
+            for keywords, _score_delta, _capex_delta, risk_label, is_critical in _RISK_RULES
+            if is_critical and cls._matches_keywords(lowered, keywords)
+        ]
+
     def _compute_heuristic_underwriting(
         self,
         property_data: PropertyInput,
@@ -192,71 +270,25 @@ class RealEstateAnalyzer:
         reno_ratio = Decimal("0.08")
         arv_multiplier = Decimal("1.24")
         risk_factors: list[str] = []
+        has_critical_risk = False
 
-        risk_rules: tuple[tuple[tuple[str, ...], int, Decimal, str], ...] = (
-            (
-                ("foundation", "structural damage"),
-                -24,
-                Decimal("0.18"),
-                "Structural foundation remediation required",
-            ),
-            (
-                ("flood zone", "fema"),
-                -18,
-                Decimal("0.05"),
-                "High-risk FEMA flood zone exposure and mandatory insurance cost",
-            ),
-            (
-                ("mold",),
-                -10,
-                Decimal("0.06"),
-                "Historical mold remediation requiring clearance verification",
-            ),
-            (
-                ("eviction", "non-payment"),
-                -16,
-                Decimal("0.03"),
-                "Active tenant eviction / delinquency legal overhead",
-            ),
-            (
-                ("zoning", "variance", "denied"),
-                -22,
-                Decimal("0.04"),
-                "Unresolved municipal zoning variance dependency",
-            ),
-            (
-                ("contamination", "dry cleaner", "phase 1"),
-                -25,
-                Decimal("0.15"),
-                "Adjacent environmental contamination risk (Phase I ESA required)",
-            ),
-            (
-                ("dated", "cosmetic", "older furnace", "roof age"),
-                -4,
-                Decimal("0.07"),
-                "Deferred interior or mechanical CapEx items noted",
-            ),
-        )
-
-        for keywords, score_delta, capex_delta, risk_label in risk_rules:
-            if any(kw in text for kw in keywords):
+        for keywords, score_delta, capex_delta, risk_label, is_critical in _RISK_RULES:
+            if self._matches_keywords(text, keywords):
                 score += score_delta
                 reno_ratio += capex_delta
                 risk_factors.append(risk_label)
+                if is_critical:
+                    has_critical_risk = True
 
-        positive_rules: tuple[tuple[tuple[str, ...], int, Decimal], ...] = (
-            (("immaculate", "turnkey", "new hvac", "recent upgrades"), 12, Decimal("0.08")),
-            (("cap rate", "roi projected", "section 8", "cash flow"), 8, Decimal("0.04")),
-            (("comps", "3.5m+", "luxury flip", "booming suburb"), 10, Decimal("0.16")),
-        )
-
-        for keywords, score_delta, arv_delta in positive_rules:
-            if any(kw in text for kw in keywords):
+        for keywords, score_delta, arv_delta in _POSITIVE_RULES:
+            if self._matches_keywords(text, keywords):
                 score += score_delta
                 arv_multiplier += arv_delta
 
-        if not recon.is_consistent:
+        if has_critical_risk or not recon.is_consistent:
             score = min(score, 66)
+
+        if not recon.is_consistent:
             risk_factors.extend(recon.audit_notes)
 
         if not risk_factors:
@@ -272,6 +304,8 @@ class RealEstateAnalyzer:
 
         if not recon.is_consistent:
             action = ActionEnum.INVESTIGATE
+        elif has_critical_risk:
+            action = ActionEnum.INVESTIGATE if bounded_score >= 52 else ActionEnum.PASS
         elif bounded_score >= 75:
             action = ActionEnum.BUY
         elif bounded_score >= 52:
